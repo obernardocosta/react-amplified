@@ -46,5 +46,11 @@
       "providerPlugin": "awscloudformation",
       "type": "manual"
     }
+  },
+  "storage": {
+    "s3ba5b40dc": {
+      "service": "S3",
+      "providerPlugin": "awscloudformation"
+    }
   }
 }

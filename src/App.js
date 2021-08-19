@@ -1,11 +1,16 @@
 /* src/App.js */
 import React, { useEffect, useState } from 'react'
 import { withAuthenticator } from '@aws-amplify/ui-react'
-import Amplify, { API, graphqlOperation } from 'aws-amplify'
+import Amplify, { API, graphqlOperation, input } from 'aws-amplify'
 import { createTodo } from './graphql/mutations'
 import { listTodos } from './graphql/queries'
 
+import { Storage } from 'aws-amplify';
+import awsconfig from './aws-exports';
+
 import awsExports from "./aws-exports";
+
+Amplify.configure(awsconfig);
 Amplify.configure(awsExports);
 
 const initialState = { name: '', description: '' }
@@ -18,8 +23,43 @@ const App = () => {
     fetchTodos()
   }, [])
 
+  async function onChange(e) {
+    const file = e.target.files[0];
+    try {
+      await Storage.put(file.name, 'Private Content', {
+        level: 'private',
+        contentType: 'text/plain'
+    });
+    } catch (error) {
+      console.log('Error uploading file: ', error);
+    }  
+  }
+  
   function setInput(key, value) {
     setFormState({ ...formState, [key]: value })
+  }
+
+  function listFiles(){
+    Storage.list('', { level: 'private' })
+      .then(result => processStorageList(result))
+      .catch(err => console.log(err));
+  }
+
+  function processStorageList(results) {
+    const filesystem = {}
+    // https://stackoverflow.com/questions/44759750/how-can-i-create-a-nested-object-representation-of-a-folder-structure
+    const add = (source, target, item) => {
+      const elements = source.split("/");
+      const element = elements.shift();
+      if (!element) return // blank
+      target[element] = target[element] || {__data: item}// element;
+      if (elements.length) {
+        target[element] = typeof target[element] === "object" ? target[element] : {};
+        add(elements.join("/"), target[element], item);
+      }
+    };
+    results.forEach(item => add(item.key, filesystem, item));
+    return console.log(filesystem);
   }
 
   async function fetchTodos() {
@@ -28,6 +68,29 @@ const App = () => {
       const todos = todoData.data.listTodos.items
       setTodos(todos)
     } catch (err) { console.log('error fetching todos') }
+  }
+
+  
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename || 'download';
+    const clickHandler = () => {
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+        a.removeEventListener('click', clickHandler);
+      }, 150);
+    };
+    a.addEventListener('click', clickHandler, false);
+    a.click();
+    return a;
+  }
+  
+  // usage
+  async function download() {
+    const result = await Storage.get('glue.jpeg', { download: true });
+    downloadBlob(result.Body, 'testando-download');
   }
 
   async function addTodo() {
@@ -66,6 +129,20 @@ const App = () => {
           </div>
         ))
       }
+      <input
+        type="file"
+        onChange={onChange}
+      />
+      <input
+        type="submit"
+        value="list"
+        onClick={listFiles}
+      />
+      <input
+        type="submit"
+        value="download"
+        onClick={download}
+      />
     </div>
   )
 }
